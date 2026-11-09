@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0F172A,50:1E3A8A,100:2563EB&height=230&section=header&text=Perfexio&fontSize=58&fontColor=FFFFFF&animation=fadeIn&fontAlignY=38&desc=Goals,%20Reviews%20%26%20Growth%20in%20one%20measured%20system&descAlignY=60&descSize=18" width="100%" alt="Perfexio" />
+<h1>Perfexio</h1>
+<h3>Goals, Reviews &amp; Growth in one measured system</h3>
 
 **A multi-tenant performance management platform for goals (OKRs), manager reviews, culture and values, and leadership reporting.**
 
@@ -184,7 +185,5 @@ All rights reserved. © Masud Parvej. This repository is shared for viewing and 
 <div align="center">
 
 **Built by [Masud Parvej](https://mprantikk.github.io/)** · [LinkedIn](https://www.linkedin.com/in/mprantikk) · [mprantikk@gmail.com](mailto:mprantikk@gmail.com)
-
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:2563EB,50:1E3A8A,100:0F172A&height=110&section=footer" width="100%" />
 
 </div>
