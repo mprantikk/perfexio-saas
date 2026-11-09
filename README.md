@@ -21,9 +21,11 @@ Perfexio lets a company run a full review cycle end to end. Employees set weight
 
 It is a **static web app**: plain HTML, CSS, and JavaScript talking directly to Firebase from the browser. There is no server, no framework, no bundler, and no Cloud Functions, so it loads fast and costs almost nothing to run.
 
-<!-- LIVE DEMO: add the link here once the demo site is configured and loads the sign-in screen
-[**Live demo →**](https://your-demo-link)
--->
+<div align="center">
+
+<a href="https://staging-perfexio-demo.web.app/"><img src="https://img.shields.io/badge/🚀_Live_Demo-Open_Perfexio-2563EB?style=for-the-badge&labelColor=0F172A" /></a>
+
+</div>
 
 <br>
 
