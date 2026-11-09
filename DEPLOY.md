@@ -24,7 +24,7 @@ firebase login                 # opens a browser; sign in with the Google accoun
 Then, from inside this project folder:
 
 ```bash
-cd /Users/masudparvejprantik/Perfexio
+cd perfexio-saas
 firebase use perfexio          # selects the project (already in .firebaserc)
 firebase projects:list         # sanity check: perfexio should be listed
 ```
@@ -40,31 +40,19 @@ firebase target:apply hosting demo      staging-perfexio-demo
 
 ---
 
-## Part 1 — Revoke the leaked service-account key  ✓ DONE (2026-08-27)
+## Part 1 — Keep secrets out of the repository
 
-**Status: completed.** The leaked key was revoked in the Firebase Console, so the
-credential is now dead. Nothing further is required here; this section is kept for
-the record. (Skip to Part 2 on future setups unless a new key is ever exposed.)
+Perfexio runs entirely in the browser against Firestore security rules, so it
+needs **no** service-account private key. The Firebase *web* configuration in
+`public/js/env.js` is public by design and is safe to commit; access is controlled
+by `firestore.rules`, not by hiding those values.
 
-A service-account private key for the **old** project (`commure-performance-os`)
-was included in the original uploaded zip. Anything that leaks such a key can
-read and write that project's data, so it had to be revoked. This is unrelated to
-the new `perfexio` project, but was done before anything else.
-
-1. Open the Firebase Console and switch to the **commure-performance-os** project.
-2. Gear icon → **Project settings** → **Service accounts** tab.
-3. Click **Manage service account permissions** (opens Google Cloud Console → IAM
-   & Admin → Service Accounts).
-4. Find the service account whose key leaked (the `firebase-adminsdk-...` one),
-   open it, go to the **Keys** tab.
-5. Delete the key ID that was in the zip. If unsure which one, delete all listed
-   keys and generate a fresh one only if some server process still needs it.
-6. Perfexio itself needs **no** service-account key — it runs entirely in the
-   browser against Firestore rules — so you do not create a replacement here.
-
-The repo is already protected against re-committing keys: `.gitignore` blocks
-`serviceAccountKey.json`, `*serviceAccount*.json`, `*-firebase-adminsdk-*.json`
-and `.env*`. Never remove those lines.
+- Never commit a service-account private key, a `.env` file, or any credential.
+- `.gitignore` already blocks `serviceAccountKey.json`, `*serviceAccount*.json`,
+  `*-firebase-adminsdk-*.json` and `.env*`. Never remove those lines.
+- If a private key is ever exposed, revoke it immediately: Firebase Console →
+  Project settings → **Service accounts** → **Manage service account permissions**
+  → select the account → **Keys** → delete the exposed key.
 
 ---
 
@@ -107,7 +95,7 @@ The client is untrusted; `firestore.rules` is the real access control. Deploy it
 before opening the app to anyone.
 
 ```bash
-cd /Users/masudparvejprantik/Perfexio
+cd perfexio-saas
 npm test                                   # must pass all six sections first
 firebase deploy --only firestore:rules     # or: npm run deploy:rules
 ```
@@ -163,18 +151,11 @@ design — you add the document by hand, per environment.
 3. Console → Firestore → create a document at
    `tenants/{env}/platformAdmins/{yourUID}` with a field `email` = your email.
 
-For the Perfexio owner, create these documents so both owner emails have full
-access on **production and staging** (the two environments the app runs against):
-
-| Email | User UID | Documents to create |
-|---|---|---|
-| `masud.parvej@commure.com` | `5CnVx4BZTNZ1ghyn97zr7msXysA2` | `tenants/production/platformAdmins/5CnVx4BZTNZ1ghyn97zr7msXysA2` and `tenants/staging/platformAdmins/5CnVx4BZTNZ1ghyn97zr7msXysA2` |
-| `mprantikk@gmail.com` | `FhtdsHeFobc64F9QLhhAUA5lvyT2` | `tenants/production/platformAdmins/FhtdsHeFobc64F9QLhhAUA5lvyT2` and `tenants/staging/platformAdmins/FhtdsHeFobc64F9QLhhAUA5lvyT2` |
-
-Each document just needs `{ email: "<that email>" }`. Add the same under
-`tenants/demo` too if you want platform powers on the demo site. A UID is stable
-per Firebase project, so these values do not change between environments; if a
-UID above is ever wrong, re-copy it from Authentication → Users.
+Repeat for each environment you want platform powers on (production, staging,
+and optionally demo). The document only needs `{ email: "<your email>" }`. A UID is
+stable per Firebase project, so the same UID works in every environment; if it is
+ever wrong, re-copy it from Authentication → Users. Do not write real UIDs or
+personal emails into this repository.
 
 Rules let you *read* your own platformAdmins doc but never write it from the
 client, so this must be done in the Console. Once the doc exists, sign out and
@@ -210,7 +191,7 @@ Try a few simulated operations to confirm the intent holds, e.g.:
 ## Part 7 — Everyday redeploy cheatsheet
 
 ```bash
-cd /Users/masudparvejprantik/Perfexio
+cd perfexio-saas
 npm test                                   # gate: all six sections pass
 firebase deploy --only hosting:staging     # verify at staging-perfexio.web.app
 firebase deploy --only hosting:production  # only after staging is confirmed
