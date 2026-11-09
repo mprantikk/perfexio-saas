@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Perfexio — Goals, Reviews &amp; Growth</title>
+  <meta name="description" content="Perfexio is a multi-company performance management platform for goals, reviews, culture and values, and reporting.">
+
+  <!-- Favicon / app icon. SVG is served to modern browsers; the PNGs are
+       fallbacks (32px tab icon and the iOS home-screen icon). -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <!-- =====================================================================
+       THIRD-PARTY LIBRARIES (CDN, no build step)
+       Tailwind  : utility classes used throughout the markup
+       Chart.js  : analytics and feedback charts
+       Firebase  : compat build, because the app uses the global namespace
+       ===================================================================== -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body { background: #F8FAFC; color: #0F172A; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+
+    /* Global easing. Kept from the original build so motion feels identical. */
+    * { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+
+    .glass-panel { background: #FFFFFF; border: 1px solid #E2E8F0; box-shadow: 0 4px 25px -4px rgba(15, 23, 42, 0.04); }
+    .glass-card { background: #FFFFFF; border: 1px solid #E2E8F0; box-shadow: 0 2px 12px rgba(15, 23, 42, 0.03); border-radius: 1.25rem; }
+    .glass-card:hover { border-color: #CBD5E1; box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.08); transform: translateY(-3px); }
+
+    @keyframes modalPopIn {
+      0%   { opacity: 0; transform: scale(0.92) translateY(12px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .animate-modal-pop { animation: modalPopIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #F1F5F9; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* Signed-out screens use a dark canvas; the product itself stays light. */
+    .auth-canvas { background: radial-gradient(1200px 600px at 50% -10%, #1E293B 0%, #0B1220 55%, #060B14 100%); }
+    .auth-field { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #F8FAFC; }
+    .auth-field::placeholder { color: #64748B; }
+    .auth-field:focus { outline: none; border-color: rgba(99,102,241,0.7); background: rgba(255,255,255,0.07); }
+
+    @media print {
+      header, nav, .no-print { display: none !important; }
+      body { background: #FFFFFF; }
+    }
+  </style>
+</head>
+
+<body class="selection:bg-slate-900 selection:text-white" onclick="closeHeaderDropdownOutside(event)">
+
+<!-- ==========================================================================
+     SCREEN 1 — FIRST-RUN SETUP
+     Rendered only while public/js/env.js still holds placeholder Firebase
+     values. It replaces a blank white page with a readable instruction.
+     ========================================================================== -->
+<div id="setupScreen" class="hidden auth-canvas min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-xl w-full rounded-3xl border border-white/10 bg-white/[0.03] p-8 space-y-5 animate-modal-pop">
+    <div class="flex items-center gap-3">
+      <div class="h-11 w-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-extrabold" data-perfexio-mark>PX</div>
+      <div>
+        <h1 class="text-xl font-extrabold text-white tracking-tight">Perfexio needs its Firebase keys</h1>
+        <p class="text-xs text-slate-400 font-mono uppercase tracking-widest">Configuration required</p>
+      </div>
+    </div>
+    <p class="text-sm text-slate-300 leading-relaxed">
+      Open <span class="font-mono text-indigo-300">public/js/env.js</span> and paste the web app configuration from the
+      Firebase Console into <span class="font-mono text-indigo-300">PERFEXIO_FIREBASE_CONFIG</span>.
+    </p>
+    <ol class="text-sm text-slate-300 space-y-2 list-decimal list-inside">
+      <li>Firebase Console &rarr; project <span class="font-mono text-slate-100">perfexio</span> &rarr; Project settings &rarr; General.</li>
+      <li>Under &ldquo;Your apps&rdquo;, add a Web App or open the existing one.</li>
+      <li>Copy <span class="font-mono text-slate-100">apiKey</span>, <span class="font-mono text-slate-100">messagingSenderId</span> and <span class="font-mono text-slate-100">appId</span>.</li>
+      <li>Paste them into <span class="font-mono text-slate-100">env.js</span>, then reload this page.</li>
+    </ol>
+    <p class="text-xs text-slate-500 leading-relaxed border-t border-white/10 pt-4">
+      These web values are safe to publish. Access is controlled by Firestore security rules, not by hiding the keys.
+      Never place a service account private key in this project.
+    </p>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     SCREEN 2 — SIGN IN / CREATE COMPANY
+     ========================================================================== -->
+<div id="authScreen" class="hidden auth-canvas min-h-screen flex items-center justify-center p-4 py-10">
+  <div class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+
+    <!-- Left: brand story. Hidden on small screens so the form stays first. -->
+    <div class="hidden lg:block space-y-6 pr-4">
+      <div class="flex items-center gap-3">
+        <div class="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-extrabold text-lg" data-perfexio-mark>PX</div>
+        <div>
+          <span class="block text-2xl font-extrabold text-white tracking-tight">Perfexio</span>
+          <span class="block text-[11px] font-mono uppercase tracking-[0.2em] text-slate-500">Goals, Reviews &amp; Growth</span>
+        </div>
+      </div>
+      <h2 class="text-3xl font-extrabold text-white leading-tight tracking-tight">
+        Goals, reviews and culture<br>in one measured system.
+      </h2>
+      <p class="text-sm text-slate-400 leading-relaxed max-w-md">
+        Run a full review cycle end to end: weighted objectives, manager assessment, culture and values,
+        and a single weighted score everyone can see and trust.
+      </p>
+      <div class="grid grid-cols-3 gap-4 pt-2 max-w-md">
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <span class="block text-2xl font-extrabold text-white font-mono">50%</span>
+          <span class="block text-[11px] text-slate-400 mt-1">Goals</span>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <span class="block text-2xl font-extrabold text-white font-mono">40%</span>
+          <span class="block text-[11px] text-slate-400 mt-1">Manager review</span>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <span class="block text-2xl font-extrabold text-white font-mono">10%</span>
+          <span class="block text-[11px] text-slate-400 mt-1">Culture</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: the actual authentication card. -->
+    <div class="w-full space-y-4">
+      <div class="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-sm p-6 sm:p-8 animate-modal-pop">
+
+        <div class="lg:hidden flex items-center gap-3 mb-6">
+          <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-extrabold text-sm" data-perfexio-mark>PX</div>
+          <div>
+            <span class="block text-lg font-extrabold text-white tracking-tight">Perfexio</span>
+            <span class="block text-[10px] font-mono uppercase tracking-[0.2em] text-slate-500">Goals, Reviews &amp; Growth</span>
+          </div>
+        </div>
+
+        <!-- Panel switcher. Hidden entirely when self-service company sign-up is
+             off (the default in every shipped environment), so only the Sign in
+             form is offered — see applyEnvironmentChrome() in app.js. -->
+        <div id="authPanelSwitcher" class="flex gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/10 mb-6">
+          <button type="button" id="authTabSignIn" onclick="switchAuthPanel('signin')"
+                  class="flex-1 rounded-xl px-4 py-2.5 text-xs font-extrabold bg-white/15 text-white transition-colors">
+            Sign in
+          </button>
+          <button type="button" id="authTabCreate" onclick="switchAuthPanel('createCompany')"
+                  class="flex-1 rounded-xl px-4 py-2.5 text-xs font-extrabold text-slate-400 transition-colors">
+            Create a company
+          </button>
+        </div>
+
+        <div id="authMessage" class="hidden mb-4 rounded-xl border px-4 py-3 text-xs font-semibold"></div>
+
+        <!-- Panel A: sign in -->
+        <div id="authPanelSignIn">
+          <form onsubmit="handleEmailSignIn(event)" class="space-y-3.5">
+            <div>
+              <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="signInEmail">Work email</label>
+              <input type="email" id="signInEmail" autocomplete="username" placeholder="you@company.com"
+                     class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+            </div>
+            <div>
+              <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="signInPassword">Password</label>
+              <input type="password" id="signInPassword" autocomplete="current-password" placeholder="Enter your password"
+                     class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+            </div>
+            <button type="submit"
+                    class="w-full rounded-xl bg-white text-slate-900 font-extrabold text-sm py-3 hover:bg-slate-100 transition-colors active:scale-[0.99]">
+              Sign in
+            </button>
+          </form>
+
+          <div class="flex items-center gap-3 my-5">
+            <span class="h-px flex-1 bg-white/10"></span>
+            <span class="text-[10px] font-mono uppercase tracking-widest text-slate-500">or</span>
+            <span class="h-px flex-1 bg-white/10"></span>
+          </div>
+
+          <button type="button" onclick="handleGoogleSignIn()"
+                  class="w-full rounded-xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-white font-bold text-sm py-3 transition-colors flex items-center justify-center gap-2.5 active:scale-[0.99]">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
+              <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.43-1.7 4.2-5.5 4.2A6.3 6.3 0 0 1 12 5.7c1.8 0 3 .77 3.7 1.43l2.5-2.42A9.6 9.6 0 0 0 12 2a10 10 0 1 0 0 20c5.77 0 9.6-4.06 9.6-9.77 0-.66-.07-1.16-.16-1.66H12z"/>
+            </svg>
+            Continue with Google
+          </button>
+
+          <button type="button" onclick="handleForgotPassword()"
+                  class="w-full mt-4 text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition-colors">
+            Forgot your password?
+          </button>
+        </div>
+
+        <!-- Panel B: create a new company workspace -->
+        <div id="authPanelCreate" class="hidden">
+          <form onsubmit="handleCreateCompanySignUp(event)" class="space-y-3.5">
+            <div>
+              <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="signUpCompanyName">Company name</label>
+              <input type="text" id="signUpCompanyName" placeholder="Northwind Logistics"
+                     class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+            </div>
+            <div>
+              <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="signUpFullName">Your full name</label>
+              <input type="text" id="signUpFullName" placeholder="Amelia Hart"
+                     class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+            </div>
+            <div>
+              <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="signUpEmail">Work email</label>
+              <input type="email" id="signUpEmail" autocomplete="username" placeholder="you@company.com"
+                     class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+            </div>
+            <div>
+              <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="signUpPassword">Password</label>
+              <input type="password" id="signUpPassword" autocomplete="new-password" placeholder="At least 8 characters"
+                     class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+            </div>
+            <button type="submit"
+                    class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-extrabold text-sm py-3 transition-colors active:scale-[0.99]">
+              Create workspace
+            </button>
+          </form>
+          <p class="mt-4 text-[11px] text-slate-500 leading-relaxed">
+            You become the Super Admin of the new workspace and can invite your team straight away.
+            Everything starts on the trial plan.
+          </p>
+        </div>
+      </div>
+
+      <!-- Demo persona buttons. demo.js fills this in on the demo site only. -->
+      <div id="demoPanelBox" class="hidden"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     SCREEN 3 — ONBOARDING
+     Signed in, but not yet attached to a company workspace.
+     ========================================================================== -->
+<div id="onboardingScreen" class="hidden auth-canvas min-h-screen flex items-center justify-center p-4 py-10">
+  <div class="w-full max-w-lg space-y-4">
+    <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8 space-y-5 animate-modal-pop">
+      <div class="flex items-center gap-3">
+        <div class="h-11 w-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-extrabold" data-perfexio-mark>PX</div>
+        <div class="min-w-0">
+          <h1 class="text-lg font-extrabold text-white tracking-tight">One more step</h1>
+          <p class="text-[11px] text-slate-400 truncate">Signed in as <span id="onboardSignedInAs" class="font-mono text-slate-300">—</span></p>
+        </div>
+      </div>
+
+      <div id="onboardMessage" class="hidden rounded-xl border px-4 py-3 text-xs font-semibold"></div>
+
+      <!-- Platform staff only: open any customer workspace for support. -->
+      <div id="platformPickerBox" class="hidden rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-extrabold text-amber-200 uppercase tracking-wider">Perfexio support access</h2>
+          <span class="text-[10px] font-mono uppercase tracking-widest text-amber-300/70">Staff</span>
+        </div>
+        <select id="platformCompanySelect" class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+          <option value="">Select a company workspace...</option>
+        </select>
+        <button type="button" onclick="enterSelectedPlatformCompany()"
+                class="w-full rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-extrabold text-sm py-2.5 transition-colors active:scale-[0.99]">
+          Open workspace
+        </button>
+        <div class="pt-3 border-t border-amber-400/15">
+          <button type="button" onclick="openNewCompanyModal()"
+                  class="w-full rounded-xl border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 font-bold text-xs py-2.5 transition-colors active:scale-[0.99]">
+            + Add a client company
+          </button>
+        </div>
+      </div>
+
+      <!-- Everyone else: create your own company. -->
+      <div id="onboardCreateBox" class="space-y-3.5">
+        <p class="text-sm text-slate-300 leading-relaxed">
+          Your account is not attached to a company yet. If your administrator invited you, ask them to confirm the
+          invitation used this exact email address. Otherwise you can create your own workspace below.
+        </p>
+        <form onsubmit="handleCreateCompanyFromOnboarding(event)" class="space-y-3.5">
+          <div>
+            <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="onboardFullName">Your full name</label>
+            <input type="text" id="onboardFullName" placeholder="Amelia Hart"
+                   class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="onboardCompanyName">Company name</label>
+            <input type="text" id="onboardCompanyName" placeholder="Northwind Logistics"
+                   class="auth-field w-full rounded-xl px-3.5 py-3 text-sm font-semibold">
+          </div>
+          <button type="submit"
+                  class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-extrabold text-sm py-3 transition-colors active:scale-[0.99]">
+            Create workspace
+          </button>
+        </form>
+      </div>
+
+      <!-- Shown when self-service signup is off (the default): signed in, but
+           not yet invited to any workspace. -->
+      <div id="onboardNoAccessBox" class="hidden space-y-3.5">
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-2">
+          <h2 class="text-sm font-extrabold text-white">No workspace yet</h2>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            This account isn't attached to a company workspace, and access is by
+            invitation only. Ask your administrator to send an invitation to this
+            exact email address, then sign in again.
+          </p>
+        </div>
+        <p class="text-[11px] text-slate-500 leading-relaxed">
+          Setting up a new company? New workspaces are provisioned by Perfexio —
+          contact your Perfexio representative to get started.
+        </p>
+      </div>
+
+      <button type="button" onclick="logoutUser()"
+              class="w-full text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition-colors pt-1">
+        Sign out and use a different account
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     SCREEN 4 — THE APPLICATION
+     Order inside: header, demo bar, tab nav, cycle banner, seven sections.
+     Section ids are "sec-<tab>" and nav button ids are "tab-<tab>";
+     switchTab() in ui.js relies on that naming, so keep it when adding a tab.
+     ========================================================================== -->
+<div id="appContainer" class="hidden min-h-screen flex flex-col">
+
+  <!-- ------------------------------ HEADER ------------------------------ -->
+  <header class="sticky top-0 z-50 glass-panel border-b border-slate-200/80 backdrop-blur-md bg-white/90">
+    <div class="max-w-[98%] mx-auto px-3 sm:px-6 py-3.5 flex justify-between items-center gap-2">
+
+      <div class="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0">
+        <div id="headerLogoContainer" class="w-9 h-9 sm:w-11 sm:h-11 bg-slate-900 text-white font-extrabold text-sm sm:text-lg flex items-center justify-center rounded-xl shadow-sm overflow-hidden hover:scale-105 shrink-0" data-perfexio-mark>PX</div>
+        <div class="hidden sm:block min-w-0">
+          <div class="flex items-center space-x-2">
+            <span id="headerCompanyNameText" class="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tight text-slate-900 leading-tight break-words">Your company</span>
+            <span id="envBadge" class="hidden text-[10px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 font-mono font-bold uppercase tracking-wider">
+              <span id="envBadgeText">Staging</span>
+            </span>
+          </div>
+          <span class="block text-xs text-slate-400 font-mono tracking-widest uppercase font-bold">Goals, Reviews &amp; Growth</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 sm:space-x-3.5">
+
+        <!-- Platform staff workspace switcher -->
+        <div id="headerCompanySwitcherBox" class="hidden lg:flex items-center bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          <span class="text-[10px] font-mono uppercase text-amber-700 font-bold mr-2">Workspace</span>
+          <select id="headerCompanySwitcher" onchange="switchPlatformCompany()"
+                  class="bg-transparent text-xs text-amber-900 font-bold focus:outline-none cursor-pointer max-w-[160px]">
+            <option value="">Loading...</option>
+          </select>
+          <button type="button" onclick="openNewCompanyModal()" title="Add a client company"
+                  class="ml-2 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100 font-bold text-xs px-2 py-1 active:scale-95">
+            + New
+          </button>
+        </div>
+
+        <button type="button" id="btnOpenFeedbackForm" onclick="openModal('modal-feedback')"
+                class="hidden text-slate-400 hover:text-slate-700 hover:bg-slate-100 font-semibold text-[10px] sm:text-xs px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl transition-all active:scale-95">
+          Send feedback
+        </button>
+
+        <button type="button" id="btnOpenFeedbackDash" onclick="switchTab('feedback-dash')"
+                class="hidden bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-semibold text-[10px] sm:text-xs px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all active:scale-95">
+          Feedback dashboard
+        </button>
+
+        <div class="hidden lg:flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2">
+          <span class="text-xs font-mono uppercase text-slate-500 font-bold mr-2.5">Review cycle:</span>
+          <select id="cycleSelector" onchange="loadDashboard()" class="bg-transparent text-xs text-slate-900 font-bold focus:outline-none cursor-pointer max-w-[220px]">
+            <option value="">No review cycle selected...</option>
+          </select>
+        </div>
+
+        <!-- Profile dropdown. closeHeaderDropdownOutside() on <body> closes it. -->
+        <div class="relative">
+          <button type="button" id="profileDropdownBtn" onclick="toggleHeaderDropdown(event)"
+                  class="flex items-center space-x-2 sm:space-x-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-2xl p-1.5 sm:p-2 pr-2.5 sm:pr-3.5 transition-all focus:outline-none active:scale-95">
+            <div id="userAvatarContainer" class="shrink-0"></div>
+            <div class="text-left hidden md:block">
+              <span id="headerUserNameDisplay" class="text-xs font-extrabold text-slate-900 block leading-tight">—</span>
+              <span id="currentUserEmailDisplay" class="text-xs text-slate-500 block truncate max-w-[150px]">—</span>
+              <span id="userDesignationBadge" class="text-[10px] font-mono text-emerald-600 font-extrabold uppercase tracking-wider block">—</span>
+            </div>
+            <span class="text-slate-400 text-[10px] sm:text-xs">&#9662;</span>
+          </button>
+
+          <div id="headerProfileMenu" class="hidden absolute right-0 mt-2 w-60 sm:w-64 bg-white border border-slate-100 rounded-2xl shadow-2xl py-2 z-50 divide-y divide-slate-100 animate-modal-pop">
+            <div class="px-4 py-3">
+              <p id="menuUserName" class="text-sm font-extrabold text-slate-900">—</p>
+              <p id="menuUserEmail" class="text-xs text-slate-500 truncate">—</p>
+              <div class="mt-2"><span id="menuDesignationBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100/80 text-amber-900 border border-amber-200 uppercase">—</span></div>
+            </div>
+            <div class="py-1">
+              <button type="button" onclick="openSelfProfileModal()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900">My profile settings</button>
+            </div>
+            <div class="py-1">
+              <button type="button" onclick="logoutUser()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sample-workspace ribbon. Only visible inside the demo company. -->
+  <div id="demoSessionBar" class="hidden bg-amber-500 text-slate-900">
+    <div class="max-w-[98%] mx-auto px-3 sm:px-6 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <span id="demoSessionBarText" class="text-[11px] sm:text-xs font-semibold"></span>
+      <div class="flex items-center gap-2 shrink-0">
+        <button type="button" onclick="switchDemoRole()"
+                class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-extrabold px-3.5 py-1.5 rounded-lg active:scale-95">
+          Switch role
+        </button>
+        <button type="button" onclick="resetDemoWorkspace()"
+                class="bg-white/70 hover:bg-white text-slate-900 border border-slate-900/10 text-[11px] font-extrabold px-3.5 py-1.5 rounded-lg active:scale-95">
+          Reset sample data
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------------- TABS ------------------------------- -->
+  <nav class="glass-panel border-b border-slate-200/80 sticky top-[61px] sm:top-[73px] z-40 bg-white/95 backdrop-blur-md">
+    <div class="max-w-[98%] mx-auto px-3 sm:px-6 flex space-x-2.5 overflow-x-auto py-2.5 sm:py-3 no-scrollbar">
+      <button type="button" onclick="switchTab('my-okrs')" id="tab-my-okrs" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all bg-slate-900 text-white shadow-md active:scale-95">My performance</button>
+      <button type="button" onclick="switchTab('final-summary')" id="tab-final-summary" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent transition-all hidden active:scale-95">My final summary</button>
+      <button type="button" onclick="switchTab('team-view')" id="tab-team-view" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent transition-all hidden active:scale-95">Team reviews</button>
+      <button type="button" onclick="switchTab('reports')" id="tab-reports" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent transition-all hidden active:scale-95">Reports</button>
+      <button type="button" onclick="switchTab('analytics')" id="tab-analytics" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent transition-all hidden active:scale-95">Visual dashboard</button>
+      <button type="button" onclick="switchTab('admin-panel')" id="tab-admin-panel" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent transition-all hidden active:scale-95">Review control panel</button>
+      <button type="button" onclick="switchTab('feedback-dash')" id="tab-feedback-dash" class="whitespace-nowrap px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent transition-all hidden active:scale-95">Feedback</button>
+    </div>
+  </nav>
+
+  <main class="max-w-[98%] mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6 flex-grow w-full">
+
+    <!-- Cycle milestone banner -->
+    <div id="cycleDeadlineBanner" class="hidden glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80 flex flex-col md:flex-row justify-between items-start md:items-center text-xs gap-3.5 animate-modal-pop">
+      <div class="flex items-center space-x-3">
+        <span id="bannerPulseDot" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="font-mono font-bold text-slate-900 uppercase tracking-wider text-xs">Cycle milestones</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-600 font-mono text-xs w-full md:w-auto">
+        <div>Goal creation: <strong id="bannerOkrDeadline" class="text-slate-900 font-bold block sm:inline">Active</strong></div>
+        <div>Goal approval: <strong id="bannerApprovalDeadline" class="text-slate-900 font-bold block sm:inline">Active</strong></div>
+        <div>Manager review: <strong id="bannerReviewDeadline" class="text-slate-900 font-bold block sm:inline">Active</strong></div>
+        <div>Manager sign-off: <strong id="bannerSignoffDeadline" class="text-slate-900 font-bold block sm:inline">Active</strong></div>
+      </div>
+      <button type="button" id="btnEditDeadlines" onclick="openDeadlineModal()"
+              class="bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 border border-slate-200 px-4 py-2 rounded-xl font-mono font-semibold transition-all text-xs hidden active:scale-95 self-end md:self-auto">
+        Modify timeline
+      </button>
+    </div>
+
+    <!-- =================== TAB 1 — MY PERFORMANCE =================== -->
+    <section id="sec-my-okrs" class="space-y-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between glass-panel p-5 sm:p-7 rounded-2xl gap-4">
+        <div>
+          <h2 class="text-xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Individual performance matrix</h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">Live target progression, weight distribution and update history.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
+          <div class="bg-slate-50 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-right border border-slate-200 flex-grow sm:flex-grow-0">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Total weight</span>
+            <span id="totalWeightBadge" class="text-xs sm:text-base font-extrabold font-mono text-slate-900">0 / 100%</span>
+          </div>
+          <button type="button" id="btnManageWeights" onclick="openWeightManagerModal()"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-mono font-bold px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-xl transition-all active:scale-95 flex-grow sm:flex-grow-0">
+            Weight management
+          </button>
+          <button type="button" id="btnAddObjective" onclick="openModal('modal-okr')"
+                  class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl shadow-md transition-all active:scale-95 flex-grow sm:flex-grow-0">
+            Add objective
+          </button>
+        </div>
+      </div>
+
+      <div id="cyclePublishedWarningBanner" class="hidden bg-amber-50/80 border border-amber-200 p-4 rounded-2xl font-mono text-xs text-amber-900 font-bold">
+        No review cycle is active, or the current cycle is published and locked. Goal creation and editing are read-only.
+      </div>
+
+      <div id="okrContainer" class="space-y-5">
+        <div class="p-16 text-center text-slate-400 glass-card rounded-2xl border border-dashed border-slate-200 font-mono text-sm">
+          Select or launch a review cycle to see your goals.
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== TAB 2 — MY FINAL SUMMARY =================== -->
+    <section id="sec-final-summary" class="hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-8 rounded-2xl space-y-7">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-4 gap-3">
+          <div>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">My final performance summary</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">Weighted across goals (50%), manager review (40%) and culture and values (10%).</p>
+          </div>
+          <button type="button" onclick="window.print()" class="no-print bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl transition-all active:scale-95 whitespace-nowrap">Print summary</button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <div class="glass-card p-5 sm:p-6 rounded-2xl flex items-center justify-between border border-slate-200/80">
+            <div class="space-y-1"><span class="text-xs font-mono uppercase text-emerald-600 font-bold">Dimension 1 (50%)</span><h3 class="text-base sm:text-xl font-extrabold text-slate-900">Goals</h3></div>
+            <div class="text-right"><span id="summaryGoalScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900 block">0.00%</span><span id="summaryGoalScoreFive" class="text-xs font-mono text-slate-500 font-bold">0.00 / 5.0</span></div>
+          </div>
+          <div class="glass-card p-5 sm:p-6 rounded-2xl flex items-center justify-between border border-slate-200/80">
+            <div class="space-y-1"><span class="text-xs font-mono uppercase text-emerald-600 font-bold">Dimension 2 (40%)</span><h3 class="text-base sm:text-xl font-extrabold text-slate-900">Manager sign-off</h3></div>
+            <div class="text-right"><span id="summaryManagerScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900 block">0.00%</span><span id="summaryManagerScoreFive" class="text-xs font-mono text-slate-500 font-bold">0.00 / 5.0</span></div>
+          </div>
+          <div class="glass-card p-5 sm:p-6 rounded-2xl flex items-center justify-between border border-slate-200/80">
+            <div class="space-y-1"><span class="text-xs font-mono uppercase text-emerald-600 font-bold">Dimension 3 (10%)</span><h3 class="text-base sm:text-xl font-extrabold text-slate-900">Culture and values</h3></div>
+            <div class="text-right"><span id="summaryValuesScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900 block">0.00%</span><span id="summaryValuesScoreFive" class="text-xs font-mono text-slate-500 font-bold">0.00 / 5.0</span></div>
+          </div>
+        </div>
+
+        <div class="glass-card p-6 sm:p-8 rounded-2xl text-center space-y-4 border border-slate-200/80 bg-slate-50/50">
+          <span class="text-xs font-mono uppercase text-slate-500 font-bold tracking-widest block">Overall weighted performance score</span>
+          <div class="flex items-center justify-center space-x-4 sm:space-x-6">
+            <div><div id="overallFinalScore" class="text-3xl sm:text-5xl font-extrabold font-mono text-slate-900">0.00%</div><span class="text-[10px] sm:text-xs font-mono text-slate-500 font-bold uppercase">Weighted percentage</span></div>
+            <div class="text-2xl sm:text-3xl text-slate-200 font-mono">|</div>
+            <div><div id="overallFinalScoreFive" class="text-3xl sm:text-5xl font-extrabold font-mono text-emerald-600">0.00 / 5.0</div><span class="text-[10px] sm:text-xs font-mono text-slate-500 font-bold uppercase">Score out of 5.0</span></div>
+          </div>
+          <div>
+            <span class="text-xs font-mono text-slate-500 uppercase">Overall rating status: </span>
+            <span id="overallRatingBadge" class="inline-block px-4 py-1.5 rounded-full text-xs font-extrabold uppercase bg-amber-100/80 text-amber-800 border border-amber-200">Pending calculation</span>
+          </div>
+        </div>
+
+        <div class="glass-card p-5 sm:p-6 rounded-2xl space-y-2 border border-slate-200/80 bg-white">
+          <h4 class="text-xs font-mono font-bold text-slate-500 uppercase">Manager recommendation</h4>
+          <p id="summaryRecommendationText" class="text-xs sm:text-sm font-bold text-slate-900">Not submitted yet.</p>
+        </div>
+
+        <div class="glass-card p-5 sm:p-6 rounded-2xl space-y-2 border border-slate-200/80 bg-white">
+          <h4 class="text-xs font-mono font-bold text-slate-500 uppercase">Manager qualitative feedback</h4>
+          <p id="summaryQualitativeFeedbackText" class="text-xs sm:text-sm italic text-slate-800 font-medium">No manager feedback has been submitted yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== TAB 3 — TEAM REVIEWS =================== -->
+    <section id="sec-team-view" class="hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Direct and sub-team assessment</h2>
+            <p class="text-xs text-slate-500 mt-1">Direct reports appear first. Deeper reporting layers are grouped below them.</p>
+          </div>
+          <button type="button" id="btnAssignTeamOkr" onclick="openModalForTeamMember()"
+                  class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-sm active:scale-95 self-end sm:self-auto">
+            Assign a goal
+          </button>
+        </div>
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between border-t border-slate-100 pt-4 gap-4">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full md:w-3/4">
+            <label class="text-xs font-mono font-bold whitespace-nowrap text-slate-600" for="teamMemberSelect">Select teammate</label>
+            <input type="text" id="teamMemberSearchInput" oninput="filterTeamMemberDropdown()" placeholder="Search by name or email"
+                   class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium w-full sm:w-64 focus:outline-none focus:border-slate-900">
+            <select id="teamMemberSelect" onchange="loadTeamMemberData()" class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold w-full focus:outline-none">
+              <option value="">Select a teammate...</option>
+            </select>
+          </div>
+          <button type="button" id="btnBatchApproveOkrs" onclick="batchApproveEmployeeOkrs()"
+                  class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap active:scale-95">
+            Approve all pending goals
+          </button>
+        </div>
+
+        <div id="teamLockedNotice" class="hidden bg-amber-50/80 border border-amber-200 p-4 rounded-2xl font-mono text-xs text-amber-900 font-bold">
+          This review cycle is published and locked. Team review actions are read-only.
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div>
+          <h3 id="teamMemberHeaderName" class="text-base sm:text-lg font-extrabold text-slate-900">No teammate selected</h3>
+          <p id="teamMemberHeaderMeta" class="text-xs text-slate-500 font-mono mt-0.5">Choose someone from the list above to begin.</p>
+        </div>
+      </div>
+
+      <div id="teamFinalSummaryBox" class="hidden glass-card p-5 sm:p-7 rounded-2xl space-y-6 border border-slate-200/80 bg-slate-50/30 animate-modal-pop">
+        <div class="flex justify-between items-center border-b border-slate-200/80 pb-3 gap-3">
+          <div>
+            <span class="text-xs font-mono text-slate-500 uppercase font-bold">Teammate performance overview</span>
+            <h3 id="teamSummaryHeaderName" class="text-base sm:text-xl font-extrabold text-slate-900">Final performance summary</h3>
+          </div>
+          <button type="button" onclick="window.print()" class="no-print bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95">Print</button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+          <div class="glass-card p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Goals score (50%)</span>
+            <span id="teamSummaryGoalScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900 mt-1 block">0.00%</span>
+            <span id="teamSummaryGoalScoreFive" class="text-xs font-mono text-slate-500 font-bold block mt-0.5">0.00 / 5.0</span>
+          </div>
+          <div class="glass-card p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Manager assessment (40%)</span>
+            <span id="teamSummaryManagerScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900 mt-1 block">0.00%</span>
+            <span id="teamSummaryManagerScoreFive" class="text-xs font-mono text-slate-500 font-bold block mt-0.5">0.00 / 5.0</span>
+          </div>
+          <div class="glass-card p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Culture and values (10%)</span>
+            <span id="teamSummaryValuesScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900 mt-1 block">0.00%</span>
+            <span id="teamSummaryValuesScoreFive" class="text-xs font-mono text-slate-500 font-bold block mt-0.5">0.00 / 5.0</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-1">
+          <div class="flex items-center space-x-4">
+            <span class="text-xs font-mono text-slate-500 uppercase font-bold">Overall rating</span>
+            <span id="teamOverallRatingBadge" class="inline-block px-3.5 py-1 rounded-full text-xs font-extrabold uppercase bg-amber-100/80 text-amber-800 border border-amber-200">Pending</span>
+          </div>
+          <div class="text-left sm:text-right">
+            <span class="text-xs font-mono text-slate-500 uppercase font-bold block">Overall weighted score</span>
+            <span id="teamOverallFinalScore" class="text-lg sm:text-2xl font-extrabold font-mono text-slate-900">0.00%</span>
+            <span id="teamOverallFinalScoreFive" class="text-xs sm:text-sm font-extrabold font-mono text-emerald-600 ml-2">(0.00 / 5.0)</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="teamMemberContent" class="space-y-5"></div>
+
+      <div id="teamCultureValuesBox" class="hidden glass-card p-5 sm:p-7 rounded-2xl space-y-4 border border-slate-200/80">
+        <h3 class="text-base sm:text-lg font-bold text-slate-900">Culture and values evaluation</h3>
+        <p class="text-xs text-slate-500">Rate how the teammate demonstrated each company value, and add a short comment.</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3.5 border-b min-w-[220px]">Statement</th>
+                <th class="p-3.5 border-b min-w-[150px]">Rating</th>
+                <th class="p-3.5 border-b min-w-[200px]">Comment</th>
+              </tr>
+            </thead>
+            <tbody id="teamValuesTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+        <div class="flex justify-end pt-1">
+          <button type="button" id="btnSaveCultureValues" onclick="saveTeammateCultureValues()"
+                  class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all active:scale-95">
+            Save culture and values
+          </button>
+        </div>
+      </div>
+
+      <div id="teamOverallEvalBox" class="hidden glass-card p-5 sm:p-7 rounded-2xl space-y-5 border border-slate-200/80">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+          <h3 class="text-base sm:text-lg font-bold text-slate-900">Cycle sign-off and recommendation</h3>
+          <button type="button" id="btnManagerFinalSignoff" onclick="executeManagerFinalSignoff()"
+                  class="bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95">
+            Final sign-off and lock review
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="mgrOverallRatingVal">Overall rating (1 to 5)</label>
+            <select id="mgrOverallRatingVal" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold focus:outline-none">
+              <option value="5">5.0 &mdash; Exceptional</option>
+              <option value="4">4.0 &mdash; Exceeds expectations</option>
+              <option value="3" selected>3.0 &mdash; Meets expectations</option>
+              <option value="2">2.0 &mdash; Needs improvement</option>
+              <option value="1">1.0 &mdash; Unsatisfactory</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="mgrRecommendationVal">Manager recommendation *</label>
+            <select id="mgrRecommendationVal" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold text-slate-900 focus:outline-none">
+              <option value="Increment">Increment</option>
+              <option value="Increment + Promotion">Increment and promotion</option>
+              <option value="No Increment">No increment</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="mgrOverallFeedbackVal">Qualitative feedback</label>
+            <input type="text" id="mgrOverallFeedbackVal" placeholder="Summarise the year in a sentence or two"
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none">
+          </div>
+        </div>
+        <button type="button" id="btnSaveRatingRec" onclick="submitOverallEmployeeRating()"
+                class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all active:scale-95">
+          Save rating and recommendation
+        </button>
+      </div>
+    </section>
+
+    <!-- =================== TAB 4 — REPORTS =================== -->
+    <section id="sec-reports" class="hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Organisation reports</h2>
+            <p class="text-xs text-slate-500 mt-1">Everything below reflects the review cycle selected in the header.</p>
+          </div>
+          <div class="flex flex-wrap gap-2.5">
+            <button type="button" onclick="exportUserSummaryCSV()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm active:scale-95">Export user summary</button>
+            <button type="button" onclick="exportDetailedMatrixCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl active:scale-95">Export detailed matrix</button>
+            <button type="button" onclick="exportRosterCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl active:scale-95">Export roster</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5 border-t border-slate-100 pt-5">
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">People in cycle</span>
+            <span id="kpiPeopleInCycle" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0</span>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Goals in cycle</span>
+            <span id="kpiGoalsInCycle" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0</span>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Signed off</span>
+            <span id="kpiSignedOff" class="text-xl sm:text-3xl font-extrabold font-mono text-emerald-600 mt-1 block">0</span>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Average progress</span>
+            <span id="kpiAverageProgress" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0.00%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leadership summary — added alongside (not replacing) the two reports below. -->
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Leadership summary</h3>
+            <p class="text-xs text-slate-500 mt-1">The fastest read on where the cycle stands and what needs attention now.</p>
+          </div>
+          <div class="flex flex-wrap gap-2.5">
+            <button type="button" onclick="exportDeptSummaryCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl active:scale-95">Export team summary</button>
+            <button type="button" onclick="exportAtRiskCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl active:scale-95">Export at-risk goals</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5 border-t border-slate-100 pt-5">
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Avg manager rating</span>
+            <span id="kpiAvgRating" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">--</span>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Rated 4-5 stars</span>
+            <span id="kpiTopBox" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">--</span>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Review completion</span>
+            <span id="kpiReviewCompletion" class="text-xl sm:text-3xl font-extrabold font-mono text-emerald-600 mt-1 block">--</span>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Goals at risk</span>
+            <span id="kpiAtRisk" class="text-xl sm:text-3xl font-extrabold font-mono text-rose-600 mt-1 block">0</span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <h4 class="text-sm font-extrabold text-slate-900">Department and team performance</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs whitespace-nowrap">
+              <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+                <tr>
+                  <th class="p-3.5 border-b">Department</th>
+                  <th class="p-3.5 border-b">Team</th>
+                  <th class="p-3.5 border-b">People</th>
+                  <th class="p-3.5 border-b">Goals</th>
+                  <th class="p-3.5 border-b">Avg achievement</th>
+                  <th class="p-3.5 border-b">On track</th>
+                  <th class="p-3.5 border-b">At risk</th>
+                </tr>
+              </thead>
+              <tbody id="deptSummaryTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <h4 class="text-sm font-extrabold text-slate-900">At-risk goals <span class="text-slate-400 font-medium normal-case">(below 50% achievement)</span></h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs whitespace-nowrap">
+              <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+                <tr>
+                  <th class="p-3.5 border-b">Name</th>
+                  <th class="p-3.5 border-b">Team</th>
+                  <th class="p-3.5 border-b">Goal</th>
+                  <th class="p-3.5 border-b">Achievement</th>
+                  <th class="p-3.5 border-b">Status</th>
+                </tr>
+              </thead>
+              <tbody id="atRiskTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">User performance summary</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3.5 border-b">Name</th>
+                <th class="p-3.5 border-b">Email</th>
+                <th class="p-3.5 border-b">Manager</th>
+                <th class="p-3.5 border-b">Team</th>
+                <th class="p-3.5 border-b">Goals</th>
+                <th class="p-3.5 border-b">Avg progress</th>
+                <th class="p-3.5 border-b">Score / 5</th>
+                <th class="p-3.5 border-b">Recommendation</th>
+                <th class="p-3.5 border-b">Manager feedback</th>
+              </tr>
+            </thead>
+            <tbody id="userReportTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Detailed goal matrix</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3.5 border-b">Name</th>
+                <th class="p-3.5 border-b">Email</th>
+                <th class="p-3.5 border-b">Manager</th>
+                <th class="p-3.5 border-b">Team</th>
+                <th class="p-3.5 border-b">Period</th>
+                <th class="p-3.5 border-b">Goal</th>
+                <th class="p-3.5 border-b">Weight</th>
+                <th class="p-3.5 border-b">Target</th>
+                <th class="p-3.5 border-b">Latest progress</th>
+                <th class="p-3.5 border-b">Achievement</th>
+                <th class="p-3.5 border-b">Status</th>
+              </tr>
+            </thead>
+            <tbody id="okrReportTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== TAB 5 — VISUAL DASHBOARD =================== -->
+    <section id="sec-analytics" class="hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl">
+        <h2 class="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Visual performance dashboard</h2>
+        <p class="text-xs text-slate-500 mt-1">Leadership view of the selected review cycle. Goal figures use comparable completion percentages, so teams and departments can be read side by side.</p>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl">
+          <h3 class="text-sm font-extrabold text-slate-900">Goal achievement distribution</h3>
+          <p class="text-xs text-slate-400 mb-3">How many goals fall into each completion band.</p>
+          <div class="h-72"><canvas id="chartOverallTargetVsAch"></canvas></div>
+        </div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl">
+          <h3 class="text-sm font-extrabold text-slate-900">Average achievement by department</h3>
+          <p class="text-xs text-slate-400 mb-3">Mean goal completion for each department, strongest first.</p>
+          <div class="h-72"><canvas id="chartTeamTargetVsAch"></canvas></div>
+        </div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl">
+          <h3 class="text-sm font-extrabold text-slate-900">Average achievement by team</h3>
+          <p class="text-xs text-slate-400 mb-3">Mean goal completion for each team, strongest first.</p>
+          <div class="h-72"><canvas id="chartManagerTargetVsAch"></canvas></div>
+        </div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl">
+          <h3 class="text-sm font-extrabold text-slate-900">Manager rating calibration</h3>
+          <p class="text-xs text-slate-400 mb-3">How the 1 to 5 star manager ratings are spread across people.</p>
+          <div class="h-72"><canvas id="chartRatingHeadcount"></canvas></div>
+        </div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl">
+          <h3 class="text-sm font-extrabold text-slate-900">Goal health</h3>
+          <p class="text-xs text-slate-400 mb-3">On track, needs attention, or at risk by completion level.</p>
+          <div class="h-72"><canvas id="chartTargetMetRatio"></canvas></div>
+        </div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl">
+          <h3 class="text-sm font-extrabold text-slate-900">Review completion</h3>
+          <p class="text-xs text-slate-400 mb-3">Share of reviews a manager has already signed off.</p>
+          <div class="h-72"><canvas id="chartTypeWiseMetrics"></canvas></div>
+        </div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl lg:col-span-2">
+          <h3 class="text-sm font-extrabold text-slate-900">Goal plan approval</h3>
+          <p class="text-xs text-slate-400 mb-3">Approved goals versus goals still awaiting approval.</p>
+          <div class="h-72"><canvas id="chartStatusPie"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== TAB 6 — REVIEW CONTROL PANEL =================== -->
+    <section id="sec-admin-panel" class="hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Review control panel</h2>
+            <p class="text-xs text-slate-500 mt-1">Company setup, people, review cycles and publishing all live here.</p>
+          </div>
+          <button type="button" onclick="openModal('modal-add-user')" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-sm active:scale-95">Add a person</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 border-t border-slate-100 pt-5">
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80 flex items-center justify-between">
+            <div>
+              <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Subscription plan</span>
+              <span id="planNameBadge" class="text-base sm:text-xl font-extrabold text-slate-900 mt-0.5 block">Trial</span>
+            </div>
+          </div>
+          <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+            <span class="block text-xs font-mono uppercase text-slate-500 font-bold">Seat usage</span>
+            <span id="planSeatUsage" class="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-1 block">0 seats in use</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Company branding -->
+      <div id="companyLogoSettingsBox" class="hidden glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Company branding</h3>
+        <p class="text-xs text-slate-500">The name and logo below appear in the header for everyone in this workspace.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="companyNameInput">Company name</label>
+            <input type="text" id="companyNameInput" placeholder="e.g. Northwind Logistics"
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="companyLogoFileInput">Company logo (PNG or JPG)</label>
+            <input type="file" id="companyLogoFileInput" accept="image/*" onchange="processCompanyLogoUpload(event)"
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none">
+            <p id="companyLogoStatusText" class="text-xs text-slate-500 font-mono mt-1.5">No new logo selected.</p>
+            <div class="flex items-center gap-3 mt-3">
+              <div id="companyLogoPreview" class="shrink-0"></div>
+              <button type="button" onclick="removeCompanyLogo()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl active:scale-95">Remove logo</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" onclick="saveCompanyBrandingSettings()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Save branding</button>
+      </div>
+
+      <!-- Culture and values statements (Super Admin only) -->
+      <div id="teamAccessSettingsBox" class="hidden glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Culture and values statements</h3>
+        <p class="text-xs text-slate-500">One statement per line, up to twelve. Managers rate each of these during sign-off.</p>
+        <textarea id="valuesStatementsInput" rows="6" placeholder="One value statement per line"
+                  class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs font-medium focus:outline-none focus:border-slate-900"></textarea>
+        <div class="flex flex-wrap gap-2.5">
+          <button type="button" onclick="saveCompanyValuesStatements()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Save statements</button>
+          <button type="button" onclick="restoreDefaultValuesStatements()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Restore defaults</button>
+        </div>
+      </div>
+
+      <!-- Review cycle configuration -->
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Step 1 &mdash; Configure a review cycle</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardCycleName">Cycle name *</label>
+            <input type="text" id="wizardCycleName" placeholder="e.g. Annual Review 2026" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardCycleType">Cycle type</label>
+            <select id="wizardCycleType" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+              <option value="Yearly">Yearly</option>
+              <option value="Half-Yearly">Half-yearly</option>
+              <option value="Quarterly">Quarterly</option>
+              <option value="Monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <label class="flex items-center space-x-2.5 bg-slate-50 border border-slate-200 rounded-xl p-3 w-full cursor-pointer">
+              <input type="checkbox" id="wizardRequireApproval" checked class="w-4 h-4 accent-slate-900">
+              <span class="text-xs font-bold text-slate-700">Require manager approval for goals</span>
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardStartDate">Cycle start date *</label>
+            <input type="date" id="wizardStartDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardEndDate">Cycle end date *</label>
+            <input type="date" id="wizardEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardOkrCreationDeadline">Goal creation deadline</label>
+            <input type="date" id="wizardOkrCreationDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardMgrApprovalDeadline">Manager approval deadline</label>
+            <input type="date" id="wizardMgrApprovalDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardMgrReviewDeadline">Manager review deadline</label>
+            <input type="date" id="wizardMgrReviewDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardMgrSignoffDeadline">Manager sign-off deadline</label>
+            <input type="date" id="wizardMgrSignoffDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+        </div>
+
+        <button type="button" onclick="saveConfiguredCycleParameters()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-sm active:scale-95">Save cycle configuration</button>
+      </div>
+
+      <!-- Roster import -->
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Step 2 &mdash; Import your people (optional)</h3>
+        <p class="text-xs text-slate-500">Download the template, fill it in, then upload it. Existing people are updated, never duplicated or removed.</p>
+        <div class="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
+          <button type="button" onclick="downloadSampleCSVFormat()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl active:scale-95">Download CSV template</button>
+          <input type="file" id="csvFileInput" accept=".csv" onchange="processUploadedCSV()" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs w-full sm:w-auto focus:outline-none">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3 border-b">#</th>
+                <th class="p-3 border-b">Name</th>
+                <th class="p-3 border-b">Email</th>
+                <th class="p-3 border-b">Designation</th>
+                <th class="p-3 border-b">Department</th>
+                <th class="p-3 border-b">Team</th>
+                <th class="p-3 border-b">Manager email</th>
+                <th class="p-3 border-b">Status</th>
+              </tr>
+            </thead>
+            <tbody id="csvPreviewTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+        <button type="button" onclick="triggerStartAndNotify()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-sm active:scale-95">Import people from the file above</button>
+      </div>
+
+      <!-- Cycle launch and management -->
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Step 3 &mdash; Launch and manage cycles</h3>
+        <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3">
+          <div class="w-full sm:w-96">
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="wizardCycleLaunchSelect">Cycle to activate</label>
+            <select id="wizardCycleLaunchSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+              <option value="">Select a configured cycle...</option>
+            </select>
+          </div>
+          <button type="button" onclick="executeLaunchSelectedCycle()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-sm active:scale-95">Activate selected cycle</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3.5 border-b">Cycle</th>
+                <th class="p-3.5 border-b">Type</th>
+                <th class="p-3.5 border-b">Window</th>
+                <th class="p-3.5 border-b">Approval</th>
+                <th class="p-3.5 border-b">State</th>
+                <th class="p-3.5 border-b">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="cycleManagementTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Publish control -->
+      <div id="hrCyclePublishControlBox" class="hidden glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <h3 id="publishBoxTitle" class="text-base sm:text-lg font-extrabold text-slate-900">Publish final results</h3>
+        <p id="publishBoxSubtitle" class="text-xs text-slate-500">Publishing locks the cycle and reveals final summaries to employees.</p>
+        <button type="button" id="btnTogglePublishCycle" onclick="togglePublishActiveCycle()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-sm active:scale-95">Publish and lock this cycle</button>
+      </div>
+
+      <!-- Reopen a locked review -->
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Reopen a locked review</h3>
+        <p class="text-xs text-slate-500">Use this when a manager needs to correct a review that has already been signed off.</p>
+        <div class="relative w-full sm:w-96">
+          <input type="text" id="hrUnlockSearchInput" oninput="showHrUnlockSuggestions()" placeholder="Search by name or email"
+                 class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium focus:outline-none focus:border-slate-900">
+          <div id="hrUnlockSuggestionsBox" class="hidden absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto"></div>
+        </div>
+        <button type="button" onclick="hrUnlockEmployeeReviewSearch()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-sm active:scale-95">Reopen the selected review</button>
+      </div>
+
+      <!-- People roster -->
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div class="flex items-center gap-3">
+            <h3 class="text-base sm:text-lg font-extrabold text-slate-900">People roster</h3>
+            <span id="rosterCountBadge" class="text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-full">0 people</span>
+          </div>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="checkbox" id="rosterIncludeArchivedToggle" onchange="toggleRosterIncludeArchived()" class="w-4 h-4 accent-slate-900">
+              <span class="text-xs font-bold text-slate-600">Show archived people</span>
+            </label>
+            <input type="text" id="rosterSearchInput" oninput="filterUserRosterTable()" placeholder="Search the roster"
+                   class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium w-full sm:w-64 focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3.5 border-b">Name</th>
+                <th class="p-3.5 border-b">Email</th>
+                <th class="p-3.5 border-b">Designation</th>
+                <th class="p-3.5 border-b">Department</th>
+                <th class="p-3.5 border-b">Team</th>
+                <th class="p-3.5 border-b">Manager</th>
+                <th class="p-3.5 border-b">Role</th>
+                <th class="p-3.5 border-b">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userRosterTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== TAB 7 — FEEDBACK =================== -->
+    <section id="sec-feedback-dash" class="hidden space-y-6">
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <h2 class="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Product feedback dashboard</h2>
+          <p class="text-xs text-slate-500 mt-1">Everything submitted through the in-app feedback form.</p>
+        </div>
+        <button type="button" onclick="loadFeedbackDashboard()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl active:scale-95">Refresh</button>
+      </div>
+
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-5">
+        <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80"><span class="block text-xs font-mono uppercase text-slate-500 font-bold">Total responses</span><span id="fbKpiTotal" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0</span></div>
+        <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80"><span class="block text-xs font-mono uppercase text-slate-500 font-bold">Bugs and errors</span><span id="fbKpiBug" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0.00</span></div>
+        <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80"><span class="block text-xs font-mono uppercase text-slate-500 font-bold">Feature coverage</span><span id="fbKpiFeature" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0.00</span></div>
+        <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80"><span class="block text-xs font-mono uppercase text-slate-500 font-bold">Design and usability</span><span id="fbKpiUI" class="text-xl sm:text-3xl font-extrabold font-mono text-slate-900 mt-1 block">0.00</span></div>
+        <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-200/80"><span class="block text-xs font-mono uppercase text-slate-500 font-bold">Overall experience</span><span id="fbKpiGeneral" class="text-xl sm:text-3xl font-extrabold font-mono text-emerald-600 mt-1 block">0.00</span></div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl"><h3 class="text-sm font-extrabold text-slate-900 mb-3">Average score by category</h3><div class="h-72"><canvas id="chartFbCategories"></canvas></div></div>
+        <div class="glass-panel p-5 sm:p-6 rounded-2xl"><h3 class="text-sm font-extrabold text-slate-900 mb-3">Overall rating distribution</h3><div class="h-72"><canvas id="chartFbDistribution"></canvas></div></div>
+      </div>
+
+      <div class="glass-panel p-5 sm:p-7 rounded-2xl space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <h3 class="text-base sm:text-lg font-extrabold text-slate-900">All feedback responses</h3>
+          <input type="text" id="fbSearchInput" oninput="filterFeedbackTable()" placeholder="Search feedback"
+                 class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium w-full sm:w-64 focus:outline-none focus:border-slate-900">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs whitespace-nowrap">
+            <thead class="bg-slate-50 font-mono text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="p-3.5 border-b">Submitted</th>
+                <th class="p-3.5 border-b">Name</th>
+                <th class="p-3.5 border-b">Email</th>
+                <th class="p-3.5 border-b">Bugs</th>
+                <th class="p-3.5 border-b">Features</th>
+                <th class="p-3.5 border-b">Design</th>
+                <th class="p-3.5 border-b">Overall</th>
+                <th class="p-3.5 border-b">Comments</th>
+              </tr>
+            </thead>
+            <tbody id="fbReportTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-200/80 bg-white/70 py-5 mt-6 no-print">
+    <div class="max-w-[98%] mx-auto px-3 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-400 font-mono">
+      <span></span>
+      <span id="footerBuildLabel">Perfexio v1.0.0</span>
+    </div>
+  </footer>
+</div>
+
+<!-- ==========================================================================
+     MODALS
+     Every modal is a hidden fixed overlay whose id starts with "modal-".
+     openModal(id) / closeModal(id) in ui.js only toggle the "hidden" class,
+     so a new modal needs no JS wiring beyond its own save handler.
+     ========================================================================== -->
+
+<!-- ---------------------- Goal create / edit ---------------------- -->
+<div id="modal-okr" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-4xl shadow-2xl animate-modal-pop my-6">
+    <form onsubmit="handleCreateOrUpdateOKR(event)">
+      <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+        <h3 id="modalOkrTitleHeader" class="text-base sm:text-xl font-extrabold text-slate-900">Add a new objective</h3>
+        <button type="button" onclick="closeModal('modal-okr')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="px-5 sm:px-7 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+        <input type="hidden" id="editingOkrId" value="">
+        <input type="hidden" id="targetOkrOwnerEmail" value="">
+
+        <div>
+          <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrTitle">Objective title *</label>
+          <input type="text" id="newOkrTitle" placeholder="e.g. Increase qualified pipeline in the enterprise segment"
+                 class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrDescription">Description</label>
+          <textarea id="newOkrDescription" rows="2" placeholder="Add any context that helps your manager assess this objective"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium focus:outline-none focus:border-slate-900"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrPeriod">Measurement period</label>
+            <select id="newOkrPeriod" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+              <option value="Yearly">Yearly</option>
+              <option value="Half-Yearly">Half-yearly</option>
+              <option value="Quarterly">Quarterly</option>
+              <option value="Monthly">Monthly</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrDirection">Success direction</label>
+            <select id="newOkrDirection" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+              <option value="INCREASE">Higher is better</option>
+              <option value="DECREASE">Lower is better</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrDataType">Data type</label>
+            <select id="newOkrDataType" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+              <option value="Percentage">Percentage</option>
+              <option value="Number">Number</option>
+              <option value="Currency">Currency</option>
+              <option value="Days">Days</option>
+              <option value="Ratio">Ratio</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrTarget">Target value *</label>
+            <input type="number" step="any" id="newOkrTarget" placeholder="e.g. 100" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrAchievement">Achieved so far</label>
+            <input type="number" step="any" id="newOkrAchievement" placeholder="e.g. 45" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newOkrWeight">Weight (%)</label>
+            <input type="number" step="any" min="0" max="100" id="newOkrWeight" placeholder="Leave empty to balance automatically" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="okrStartDate">Start date</label>
+            <input type="date" id="okrStartDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="okrEndDate">End date</label>
+            <input type="date" id="okrEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+          </div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <div>
+              <h4 class="text-xs font-mono font-bold text-slate-700 uppercase">Key results (optional)</h4>
+              <p class="text-xs text-slate-500 mt-0.5">Break the objective into measurable key results.</p>
+            </div>
+            <button type="button" onclick="addFullFeaturedKRRow()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl active:scale-95">Add key result</button>
+          </div>
+          <div id="krContainer" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+        <button type="button" onclick="closeModal('modal-okr')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Save objective</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------------- Weight manager ---------------------- -->
+<div id="modal-weight-manager" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-modal-pop my-6">
+    <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+      <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Weight management</h3>
+      <button type="button" onclick="closeModal('modal-weight-manager')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+    </div>
+    <div class="px-5 sm:px-7 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
+      <div class="flex justify-between items-center">
+        <p class="text-xs text-slate-500">Weights must add up to exactly 100% before the cycle can be signed off.</p>
+        <span id="modalWeightSumBadge" class="text-xs font-mono font-extrabold px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">0%</span>
+      </div>
+      <div id="weightInputsContainer" class="space-y-2.5"></div>
+    </div>
+    <div class="flex flex-col sm:flex-row justify-between gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+      <button type="button" onclick="equalSplitWeights()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Split equally</button>
+      <div class="flex flex-col sm:flex-row gap-2.5">
+        <button type="button" onclick="closeModal('modal-weight-manager')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+        <button type="button" onclick="saveOKRWeightsBatch()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Save weights</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------- Weight overflow prompt ---------------------- -->
+<div id="modal-weight-overflow" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-6">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-modal-pop">
+    <div class="border-b border-slate-100 px-5 sm:px-7 py-4">
+      <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Total weight exceeds 100%</h3>
+    </div>
+    <div class="px-5 sm:px-7 py-5">
+      <p id="weightOverflowMessageText" class="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed"></p>
+    </div>
+    <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+      <button type="button" onclick="closeModal('modal-weight-overflow')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+      <button type="button" onclick="handleOverflowAdjustManual()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Adjust weights myself</button>
+      <button type="button" onclick="handleOverflowApplyEqualSplit()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm active:scale-95">Rebalance automatically</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------- Timeline extension ---------------------- -->
+<div id="modal-deadlines" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-modal-pop my-6">
+    <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+      <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Modify cycle timeline</h3>
+      <button type="button" onclick="closeModal('modal-deadlines')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+    </div>
+    <div class="px-5 sm:px-7 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editOkrCreationDeadline">Goal creation deadline</label>
+        <input type="date" id="editOkrCreationDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editMgrApprovalDeadline">Manager approval deadline</label>
+        <input type="date" id="editMgrApprovalDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editMgrReviewDeadline">Manager review deadline</label>
+        <input type="date" id="editMgrReviewDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editMgrSignoffDeadline">Manager sign-off deadline</label>
+        <input type="date" id="editMgrSignoffDeadline" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+      </div>
+    </div>
+    <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+      <button type="button" onclick="closeModal('modal-deadlines')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+      <button type="button" onclick="saveDeadlineExtension()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Save timeline</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------------------- Add a person ---------------------- -->
+<div id="modal-add-user" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-modal-pop my-6">
+    <form onsubmit="handleManualUserCreation(event)">
+      <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+        <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Add a person</h3>
+        <button type="button" onclick="closeModal('modal-add-user')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+      </div>
+      <div class="px-5 sm:px-7 py-5 space-y-4">
+        <p class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3.5 leading-relaxed">
+          The person is invited by email. They join this workspace automatically the first time they sign in with that address.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newUserName">Full name *</label>
+            <input type="text" id="newUserName" placeholder="e.g. Ayesha Rahman" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newUserEmail">Work email *</label>
+            <input type="email" id="newUserEmail" placeholder="name@company.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newUserDesignation">Designation</label>
+            <input type="text" id="newUserDesignation" placeholder="e.g. Senior Analyst" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newUserDepartment">Department</label>
+            <input type="text" id="newUserDepartment" placeholder="e.g. Revenue Operations" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newUserTeamName">Team</label>
+            <input type="text" id="newUserTeamName" placeholder="e.g. Enterprise Accounts" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newUserManagerEmail">Manager email</label>
+            <input type="email" id="newUserManagerEmail" list="managerEmailOptions" placeholder="manager@company.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+        <button type="button" onclick="closeModal('modal-add-user')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Add and invite</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------------- New company (Perfexio staff) ---------------------- -->
+<div id="modal-newCompany" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-modal-pop my-6">
+    <form onsubmit="handleCreateClientCompany(event)">
+      <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+        <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Add a client company</h3>
+        <button type="button" onclick="closeModal('modal-newCompany')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+      </div>
+      <div class="px-5 sm:px-7 py-5 space-y-4">
+        <p class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3.5 leading-relaxed">
+          This creates the workspace and invites the owner as its Super Admin. The owner claims it the first time they sign in with the email below.
+        </p>
+        <div id="newCompanyMessage" class="hidden"></div>
+        <div>
+          <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newCompanyName">Company name *</label>
+          <input type="text" id="newCompanyName" placeholder="e.g. Northwind Logistics" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newCompanyOwnerEmail">Owner email *</label>
+            <input type="email" id="newCompanyOwnerEmail" placeholder="owner@company.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newCompanyOwnerName">Owner name</label>
+            <input type="text" id="newCompanyOwnerName" placeholder="e.g. Amelia Hart" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newCompanyPlan">Plan</label>
+            <select id="newCompanyPlan" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+              <option value="trial">Trial — 25 seats</option>
+              <option value="growth">Growth — 250 seats</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="newCompanyDomains">Allowed email domains</label>
+            <input type="text" id="newCompanyDomains" placeholder="company.com (optional)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 leading-relaxed">
+          Leave domains blank to allow any invited address. If set, only people at those domains can be invited or join.
+        </p>
+      </div>
+      <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+        <button type="button" onclick="closeModal('modal-newCompany')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Create workspace</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------------- Edit a person ---------------------- -->
+<div id="modal-edit-user" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-modal-pop my-6">
+    <form onsubmit="handleSaveEditedUser(event)">
+      <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+        <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Edit person details</h3>
+        <button type="button" onclick="closeModal('modal-edit-user')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+      </div>
+      <div class="px-5 sm:px-7 py-5 space-y-4">
+        <input type="hidden" id="editUserEmailHidden" value="">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+          <label class="text-xs font-mono uppercase text-slate-500 font-bold block" for="editUserEmailDisplay">Email address</label>
+          <input type="text" id="editUserEmailDisplay" readonly tabindex="-1"
+                 class="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-900 font-mono focus:outline-none cursor-default">
+          <p class="text-xs text-slate-500 mt-1">The email address identifies the account and cannot be changed.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editUserName">Full name *</label>
+            <input type="text" id="editUserName" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editUserDesignation">Designation</label>
+            <input type="text" id="editUserDesignation" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editUserDepartment">Department</label>
+            <input type="text" id="editUserDepartment" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editUserTeamName">Team</label>
+            <input type="text" id="editUserTeamName" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="editUserManagerEmail">Manager email</label>
+            <input type="email" id="editUserManagerEmail" list="managerEmailOptions" placeholder="Leave empty for no manager"
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+        <button type="button" onclick="closeModal('modal-edit-user')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------------- My profile ---------------------- -->
+<div id="modal-my-profile" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-3xl shadow-2xl animate-modal-pop my-6">
+    <form onsubmit="handleSaveSelfProfile(event)">
+      <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+        <h3 class="text-base sm:text-xl font-extrabold text-slate-900">My profile settings</h3>
+        <button type="button" onclick="closeModal('modal-my-profile')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="px-5 sm:px-7 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div id="profilePhotoPreview" class="shrink-0"></div>
+          <div class="flex-grow">
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="profilePhotoFileInput">Profile photo</label>
+            <input type="file" id="profilePhotoFileInput" accept="image/*" onchange="processProfileImageUpload(this)"
+                   class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none">
+            <p class="text-xs text-slate-500 mt-1.5">Images are resized automatically. Select "Save profile" to apply the change.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="profileFullName">Full name *</label>
+            <input type="text" id="profileFullName" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="profilePhone">Phone number</label>
+            <input type="text" id="profilePhone" placeholder="Optional" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="profileLinkedin">LinkedIn profile</label>
+            <input type="text" id="profileLinkedin" placeholder="https://linkedin.com/in/username" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="profileSkills">Key skills</label>
+            <input type="text" id="profileSkills" placeholder="Comma separated" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="profileBio">Short bio</label>
+            <textarea id="profileBio" rows="3" placeholder="A few lines about your role and focus areas"
+                      class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium focus:outline-none focus:border-slate-900"></textarea>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <span class="text-xs font-mono uppercase text-slate-500 font-bold block">Email address</span>
+            <span id="profileEmailReadonly" class="text-xs font-bold text-slate-900 font-mono">—</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <span class="text-xs font-mono uppercase text-slate-500 font-bold block">System role</span>
+            <span id="profileRoleReadonly" class="text-xs font-bold text-slate-900">—</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <span class="text-xs font-mono uppercase text-slate-500 font-bold block">Designation</span>
+            <span id="profileDesignationReadonly" class="text-xs font-bold text-slate-900">—</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <span class="text-xs font-mono uppercase text-slate-500 font-bold block">Department</span>
+            <span id="profileDepartmentReadonly" class="text-xs font-bold text-slate-900">—</span>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 sm:col-span-2">
+            <span class="text-xs font-mono uppercase text-slate-500 font-bold block">Reporting manager</span>
+            <span id="profileManagerReadonly" class="text-xs font-bold text-slate-900">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-between gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+        <button type="button" onclick="requestOwnPasswordReset()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Email me a password reset link</button>
+        <div class="flex flex-col sm:flex-row gap-2.5">
+          <button type="button" onclick="closeModal('modal-my-profile')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+          <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Save profile</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------------- Product feedback ---------------------- -->
+<div id="modal-feedback" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+  <div class="bg-white rounded-2xl w-full max-w-3xl shadow-2xl animate-modal-pop my-6">
+    <form onsubmit="handleSubmitStagingFeedback(event)">
+      <div class="flex justify-between items-center border-b border-slate-100 px-5 sm:px-7 py-4">
+        <h3 class="text-base sm:text-xl font-extrabold text-slate-900">Share your feedback</h3>
+        <button type="button" onclick="closeModal('modal-feedback')" class="text-slate-400 hover:text-slate-900 text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="px-5 sm:px-7 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="fbTesterName">Your name</label>
+            <input type="text" id="fbTesterName" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-mono font-bold text-slate-600 mb-1.5" for="fbTesterEmail">Your email</label>
+            <input type="email" id="fbTesterEmail" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="glass-card p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label class="text-xs font-extrabold text-slate-900" for="fbRatingBug">Bugs and errors</label>
+              <select id="fbRatingBug" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:outline-none w-full sm:w-56">
+                <option value="5">5 &mdash; No issues at all</option>
+                <option value="4">4 &mdash; Very few issues</option>
+                <option value="3">3 &mdash; Some issues</option>
+                <option value="2">2 &mdash; Frequent issues</option>
+                <option value="1">1 &mdash; Blocking issues</option>
+              </select>
+            </div>
+            <input type="text" id="fbCommentBug" placeholder="Describe anything that broke or behaved unexpectedly" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-slate-900">
+          </div>
+
+          <div class="glass-card p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label class="text-xs font-extrabold text-slate-900" for="fbRatingFeature">Feature coverage</label>
+              <select id="fbRatingFeature" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:outline-none w-full sm:w-56">
+                <option value="5">5 &mdash; Everything I need</option>
+                <option value="4">4 &mdash; Almost everything</option>
+                <option value="3">3 &mdash; Adequate</option>
+                <option value="2">2 &mdash; Missing key features</option>
+                <option value="1">1 &mdash; Not usable yet</option>
+              </select>
+            </div>
+            <input type="text" id="fbCommentFeature" placeholder="What is missing, and what would you use it for?" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-slate-900">
+          </div>
+
+          <div class="glass-card p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label class="text-xs font-extrabold text-slate-900" for="fbRatingUI">Design and usability</label>
+              <select id="fbRatingUI" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:outline-none w-full sm:w-56">
+                <option value="5">5 &mdash; Very easy to use</option>
+                <option value="4">4 &mdash; Mostly clear</option>
+                <option value="3">3 &mdash; Acceptable</option>
+                <option value="2">2 &mdash; Confusing in places</option>
+                <option value="1">1 &mdash; Hard to use</option>
+              </select>
+            </div>
+            <input type="text" id="fbCommentUI" placeholder="Where did the interface slow you down?" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-slate-900">
+          </div>
+
+          <div class="glass-card p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label class="text-xs font-extrabold text-slate-900" for="fbRatingGeneral">Overall experience</label>
+              <select id="fbRatingGeneral" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:outline-none w-full sm:w-56">
+                <option value="5">5 &mdash; Excellent</option>
+                <option value="4">4 &mdash; Good</option>
+                <option value="3">3 &mdash; Average</option>
+                <option value="2">2 &mdash; Below average</option>
+                <option value="1">1 &mdash; Poor</option>
+              </select>
+            </div>
+            <input type="text" id="fbCommentGeneral" placeholder="Anything else we should know?" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-slate-900">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-slate-100 px-5 sm:px-7 py-4">
+        <button type="button" onclick="closeModal('modal-feedback')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs px-5 py-2.5 rounded-xl active:scale-95">Cancel</button>
+        <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm active:scale-95">Submit feedback</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Shared option source for manager email inputs. -->
+<datalist id="managerEmailOptions"></datalist>
+
+<!-- Toasts and the blocking busy overlay. -->
+<div id="toastHost" class="fixed bottom-5 right-5 z-[90] space-y-2.5 w-[calc(100%-2.5rem)] sm:w-80 no-print"></div>
+
+<div id="busyOverlay" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[100] flex items-center justify-center no-print">
+  <div class="bg-white rounded-2xl px-7 py-6 shadow-2xl flex items-center space-x-4 animate-modal-pop">
+    <span class="w-5 h-5 rounded-full border-2 border-slate-200 border-t-slate-900 animate-spin"></span>
+    <span id="busyOverlayText" class="text-xs font-bold text-slate-900">Working...</span>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     SCRIPTS — load order matters.
+     env.js      : environment detection, Firebase config, brand constants
+     firebase.js : SDK init plus the T.* tenant path router
+     state.js    : shared mutable state and role helpers
+     ui.js       : toasts, modals, tabs, busy overlay, small DOM helpers
+     auth.js     : sign-in, sign-up, onboarding, session boot, own profile
+     cycles.js   : review cycles, deadlines, publishing, company settings
+     okrs.js     : goals, key results, weights, scoring, final summary
+     team.js     : team reviews, culture and values, manager sign-off
+     admin.js    : roster, CSV import, branding, plan and seats
+     reports.js  : report tables, CSV exports, charts
+     feedback.js : feedback form and feedback dashboard
+     demo.js     : one-click sample workspace for demos and pitches
+     app.js      : boot sequence, wiring and startApplication()
+     ========================================================================== -->
+<script src="js/env.js"></script>
+<script src="js/firebase.js"></script>
+<script src="js/state.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/cycles.js"></script>
+<script src="js/okrs.js"></script>
+<script src="js/team.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

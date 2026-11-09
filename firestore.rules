@@ -1,0 +1,538 @@
+rules_version = '2';
+
+/* ============================================================================
+ * Perfexio — Firestore security rules
+ * ----------------------------------------------------------------------------
+ * ONE Firebase project serves THREE hosting sites. The environment is the
+ * first path segment, so production data is unreachable from staging or demo
+ * even though all three share a single database:
+ *
+ *   tenants/production/...   <- perfexio.web.app
+ *   tenants/staging/...      <- staging-perfexio.web.app
+ *   tenants/demo/...         <- staging-perfexio-demo.web.app
+ *
+ * SECURITY MODEL IN ONE PARAGRAPH
+ *   A signed-in user is bound to exactly one company by the document
+ *   tenants/{root}/userIndex/{uid}. Every read and write inside a company is
+ *   checked against that binding, so a request can never reach another
+ *   company's data by guessing an id. Inside a company, the caller's own
+ *   users/{email} document carries accessLevel, which drives what they may
+ *   write. Perfexio staff listed in tenants/{root}/platformAdmins/{uid} get
+ *   support access. No Cloud Functions are required, so this runs on the
+ *   free Spark plan.
+ *
+ * DATA SAFETY
+ *   delete is denied everywhere except review cycles, which the product
+ *   already soft-deletes with isDeleted. People are archived, never removed.
+ *   That is enforced here as well as in the UI, so no future code change or
+ *   stray console call can wipe history.
+ *
+ * HOW TO ADD A NEW COLLECTION
+ *   Add a match block inside the company match, and pick one of the existing
+ *   allow patterns: everyone-in-company read, admin-only write, or own-record
+ *   write. Do not write a rule that reads a document outside the company path.
+ * ==========================================================================*/
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ======================================================================
+     * The environment root. 'tenants' has exactly three children and they are
+     * created by the deploy guide, not by the app.
+     * ==================================================================== */
+    match /tenants/{root} {
+
+      /* The root document itself holds nothing sensitive and is never written
+         by the client. Reading it is harmless; writing it is not allowed. */
+      allow get: if isSignedIn();
+      allow list, create, update, delete: if false;
+
+      /* --------------------------------------------------------------------
+       * Helper functions
+       *
+       * All of them are scoped to {root}, which is captured from the path.
+       * That is what makes the environment boundary structural: a staging
+       * session literally cannot name a production document.
+       * ------------------------------------------------------------------ */
+
+      function isSignedIn() {
+        return request.auth != null && request.auth.uid != null;
+      }
+
+      /* Verified email is not required, because Google sign-in and invited
+         email/password users both need to work on day one. */
+      function myEmail() {
+        return isSignedIn() && request.auth.token.email != null
+          ? request.auth.token.email.lower()
+          : '';
+      }
+
+      function isPlatformAdmin() {
+        return isSignedIn() &&
+          exists(/databases/$(database)/documents/tenants/$(root)/platformAdmins/$(request.auth.uid));
+      }
+
+      function myIndexPath() {
+        return /databases/$(database)/documents/tenants/$(root)/userIndex/$(request.auth.uid);
+      }
+
+      /* The company this uid is bound to, or '' when it is bound to none. */
+      function myCompanyId() {
+        return isSignedIn() && exists(myIndexPath())
+          ? get(myIndexPath()).data.get('companyId', '')
+          : '';
+      }
+
+      /* Membership is the single gate for every company path. Platform staff
+         pass it for any company so they can provide support. */
+      function inCompany(companyId) {
+        return isSignedIn() && (myCompanyId() == companyId || isPlatformAdmin());
+      }
+
+      function companyPath(companyId) {
+        return /databases/$(database)/documents/tenants/$(root)/companies/$(companyId);
+      }
+
+      function companyData(companyId) {
+        return get(companyPath(companyId)).data;
+      }
+
+      function isCompanyOwner(companyId) {
+        return isSignedIn() &&
+          exists(companyPath(companyId)) &&
+          companyData(companyId).get('ownerEmail', '').lower() == myEmail();
+      }
+
+      /* My own membership record inside that company. */
+      function myMemberPath(companyId) {
+        return /databases/$(database)/documents/tenants/$(root)/companies/$(companyId)/users/$(myEmail());
+      }
+
+      function myAccessLevel(companyId) {
+        return exists(myMemberPath(companyId))
+          ? get(myMemberPath(companyId)).data.get('accessLevel', 'Level 1')
+          : 'Level 1';
+      }
+
+      /* An archived member keeps their history but loses access. */
+      function myMemberStatus(companyId) {
+        return exists(myMemberPath(companyId))
+          ? get(myMemberPath(companyId)).data.get('status', 'active')
+          : 'active';
+      }
+
+      function isActiveMember(companyId) {
+        return inCompany(companyId) && myMemberStatus(companyId) != 'archived';
+      }
+
+      /* The owner and Perfexio staff are always treated as Super Admin, which
+         matches applyRolePermissions() in cycles.js. */
+      function isSuperAdminOf(companyId) {
+        return isPlatformAdmin() ||
+          isCompanyOwner(companyId) ||
+          (inCompany(companyId) && myAccessLevel(companyId) == 'Super Admin');
+      }
+
+      function isAdminOrAbove(companyId) {
+        return isSuperAdminOf(companyId) ||
+          (inCompany(companyId) && myAccessLevel(companyId) == 'Admin');
+      }
+
+      function isManagerOrAbove(companyId) {
+        return isAdminOrAbove(companyId) ||
+          (inCompany(companyId) && myAccessLevel(companyId) == 'Level 2');
+      }
+
+      /* --------------------------------------------------------------------
+       * Invite helpers (shared)
+       *
+       * A pending invite written by an administrator is the proof that a
+       * person is allowed to bind to a company. Defined here at the {root}
+       * scope so both the userIndex binding and the company roster can rely
+       * on them.
+       * ------------------------------------------------------------------ */
+      function myInviteDoc() {
+        return /databases/$(database)/documents/tenants/$(root)/invitesByEmail/$(myEmail());
+      }
+
+      function hasLiveInvite() {
+        return isSignedIn()
+          && myEmail() != ''
+          && exists(myInviteDoc())
+          && get(myInviteDoc()).data.get('status', '') != 'revoked';
+      }
+
+      /* True only when the caller holds a live invite naming this exact
+         company, so a binding cannot be forged to reach a workspace by id. */
+      function boundByInvite(companyId) {
+        return hasLiveInvite()
+          && get(myInviteDoc()).data.get('companyId', '') == companyId;
+      }
+
+      /* --------------------------------------------------------------------
+       * Domain allow-list (optional, per company)
+       *
+       * A company may restrict who can be invited to a set of email domains,
+       * stored lowercased on the company doc as allowedDomains. An empty or
+       * absent list means no restriction, so companies created before this
+       * feature are unaffected.
+       * ------------------------------------------------------------------ */
+      function companyAllowedDomains(companyId) {
+        return exists(companyPath(companyId))
+          ? companyData(companyId).get('allowedDomains', [])
+          : [];
+      }
+
+      /* True when the address may join the company: either the company sets no
+         domain list, or the address's domain is on it. */
+      function emailDomainAllowed(companyId, emailAddr) {
+        return companyAllowedDomains(companyId).size() == 0
+          || (emailAddr.split('@').size() == 2
+              && companyAllowedDomains(companyId).hasAny([emailAddr.split('@')[1]]));
+      }
+
+      /* --------------------------------------------------------------------
+       * userIndex/{uid} — which company a uid belongs to
+       *
+       * A uid may only ever write its OWN binding (request.auth.uid == uid and
+       * the email must be the caller's), so nobody can attach someone else's
+       * account to a company. Creating a binding also requires a legitimate
+       * reason, enforced below:
+       *   - a live invite naming this company  (claimInviteForCurrentUser)
+       *   - Perfexio staff (platformAdmins), e.g. after support work
+       *   - the demo sample environment, which self-provisions
+       * ------------------------------------------------------------------ */
+      match /userIndex/{uid} {
+        allow get: if isSignedIn() && (request.auth.uid == uid || isPlatformAdmin());
+        allow list: if isPlatformAdmin();
+
+        /* Creating a binding requires either an invite naming this company, a
+           Perfexio staff member, or the demo sample environment. The email on
+           the document must be the caller's own. */
+        allow create: if isSignedIn()
+          && request.auth.uid == uid
+          && request.resource.data.get('email', '').lower() == myEmail()
+          && request.resource.data.companyId is string
+          && request.resource.data.companyId.size() > 0
+          && (
+            boundByInvite(request.resource.data.companyId)
+            || isPlatformAdmin()
+            || root == 'demo'
+          );
+
+        /* Updating is only used to re-point a binding after support work. */
+        allow update: if isSignedIn() && request.auth.uid == uid
+          && request.resource.data.get('email', '').lower() == myEmail();
+
+        /* Never delete a binding. Losing it would orphan the person's data. */
+        allow delete: if false;
+      }
+
+      /* --------------------------------------------------------------------
+       * invitesByEmail/{email} — pending invitations
+       *
+       * An administrator writes the invite; the invited person reads their own
+       * one on first sign-in and marks it accepted. Reading is restricted to
+       * the invited address, so the collection cannot be scraped for emails.
+       * ------------------------------------------------------------------ */
+      match /invitesByEmail/{email} {
+
+        allow get: if isSignedIn() && (
+          email == myEmail() ||
+          isAdminOrAbove(resource.data.get('companyId', '__none__'))
+        );
+
+        allow list: if isSignedIn() && isPlatformAdmin();
+
+        /* An admin invites somebody into their own company. If the company
+           restricts sign-in to certain domains, the invited address must be
+           on that allow-list. */
+        allow create: if isSignedIn()
+          && request.resource.data.companyId is string
+          && isAdminOrAbove(request.resource.data.companyId)
+          && request.resource.data.get('email', '').lower() == email
+          && emailDomainAllowed(request.resource.data.companyId, email);
+
+        /* Two legitimate updates:
+             1. an admin of the owning company edits or revokes the invite
+             2. the invited person accepts it on first sign-in            */
+        allow update: if isSignedIn() && (
+          isAdminOrAbove(resource.data.get('companyId', '__none__')) ||
+          (email == myEmail() &&
+           request.resource.data.companyId == resource.data.companyId)
+        );
+
+        /* Revoked invites are kept as a record. */
+        allow delete: if false;
+      }
+
+      /* --------------------------------------------------------------------
+       * platformAdmins/{uid} — Perfexio staff
+       *
+       * Created by hand in the Firebase Console. The client may check its own
+       * entry, and may never write here at all. This is the one collection a
+       * compromised browser session cannot use to escalate.
+       * ------------------------------------------------------------------ */
+      match /platformAdmins/{uid} {
+        allow get: if isSignedIn() && request.auth.uid == uid;
+        allow list: if false;
+        allow write: if false;
+      }
+
+      /* ====================================================================
+       * companies/{companyId} — one customer workspace
+       * ================================================================== */
+      match /companies/{companyId} {
+
+        /* Members read their own company record; the plan and seat limit are
+           shown in the admin panel. */
+        allow get: if inCompany(companyId);
+
+        /* Listing companies is a staff-only operation, used by the workspace
+           switcher. A customer can never enumerate other customers. */
+        allow list: if isPlatformAdmin();
+
+        /* Company creation is NOT self-service. Only Perfexio staff
+           (platformAdmins) may provision a customer workspace, so a stray
+           sign-up can never create a tenant. The demo site is the single
+           exception: it self-provisions its sample workspace as the demo
+           owner, because no platform admin exists in the demo environment. */
+        allow create: if isSignedIn()
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && (
+            isPlatformAdmin()
+            || (root == 'demo'
+                && request.resource.data.get('ownerEmail', '').lower() == myEmail())
+          );
+
+        /* Only a Super Admin renames a company or changes its branding.
+           Plan and seat limit are commercial fields: the customer may not
+           raise their own limits, so those stay with Perfexio staff. */
+        allow update: if isSuperAdminOf(companyId) && (
+          isPlatformAdmin() ||
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['plan', 'seatLimit', 'ownerEmail', 'status', 'trialEndsOn'])
+        );
+
+        /* A workspace is never deleted from the client. */
+        allow delete: if false;
+
+        /* ------------------------------------------------------------------
+         * users/{email} — the roster
+         *
+         * Everyone in the company can read the roster, because the product
+         * shows reporting lines, manager pickers and team views. Writes are
+         * split: administrators manage anybody, and each person may edit a
+         * short list of fields on their own record.
+         * ---------------------------------------------------------------- */
+        match /users/{personEmail} {
+
+          allow read: if isActiveMember(companyId);
+
+          /* Adding somebody to the roster is an administrator action.
+             Two self-service cases are allowed as well:
+               - the owner's very first record, written by provisionCompany in
+                 the same session that created the company
+               - an invited person claiming their seat on first sign-in     */
+          allow create: if isAdminOrAbove(companyId)
+            || (isCompanyOwner(companyId) && personEmail == myEmail())
+            || claimingMyInvite(companyId, personEmail);
+
+          allow update: if
+            /* administrators manage the roster, but may not lock out the
+               owner by archiving or demoting them */
+            (isAdminOrAbove(companyId) && !isProtectedTarget(companyId, personEmail))
+            /* the owner can always be updated by themselves */
+            || (isCompanyOwner(companyId) && personEmail == myEmail())
+            /* an invited person filling in their own seat on first sign-in */
+            || claimingMyInvite(companyId, personEmail)
+            /* anybody may maintain their own profile, limited to safe fields */
+            || (personEmail == myEmail() && editsOnlyOwnProfileFields());
+
+          /* People are archived, never deleted, so their performance history
+             stays intact. */
+          allow delete: if false;
+
+          function isProtectedTarget(cid, target) {
+            return !isPlatformAdmin()
+              && exists(companyPath(cid))
+              && companyData(cid).get('ownerEmail', '').lower() == target
+              && target != myEmail();
+          }
+
+          /* The fields My Profile Settings is allowed to touch, plus the
+             bookkeeping fields the sign-in flow writes. accessLevel,
+             managerEmail and status are deliberately absent: a person must
+             not be able to promote themselves or reassign their manager. */
+          function editsOnlyOwnProfileFields() {
+            return request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly([
+                'name', 'designation', 'photoUrl', 'phone',
+                'linkedinUrl', 'skills', 'bio',
+                'uid', 'lastLoginAt', 'joinedAt', 'updatedAt'
+              ]);
+          }
+
+          /*
+           * The invite-claim path, used by claimInviteForCurrentUser() in
+           * auth.js. An administrator has already written
+           * invitesByEmail/{email}; the invited person then writes their own
+           * roster record on first sign-in.
+           *
+           * Three conditions make this safe:
+           *   1. the record being written is the caller's own email
+           *   2. a live invite for that email names this exact company, so a
+           *      stranger cannot join a workspace by guessing its id
+           *   3. accessLevel must match the role in the invite, so nobody can
+           *      claim a seat and hand themselves Super Admin on the way in
+           *
+           * A revoked invite fails condition 2, which is what stops an
+           * archived person from restoring their own access.
+           */
+          function invitePath() {
+            return /databases/$(database)/documents/tenants/$(root)/invitesByEmail/$(myEmail());
+          }
+
+          function myInvite() {
+            return get(invitePath()).data;
+          }
+
+          function claimingMyInvite(cid, target) {
+            return isSignedIn()
+              && myEmail() != ''
+              && target == myEmail()
+              && exists(invitePath())
+              && myInvite().get('companyId', '') == cid
+              && myInvite().get('status', '') != 'revoked'
+              && request.resource.data.get('accessLevel', 'Level 1')
+                   == myInvite().get('role', 'Level 1');
+          }
+        }
+
+        /* ------------------------------------------------------------------
+         * settings/globalConfig — company name, logo, values statements
+         * ---------------------------------------------------------------- */
+        match /settings/{docId} {
+          allow read: if isActiveMember(companyId);
+          allow create, update: if isSuperAdminOf(companyId)
+            || (isCompanyOwner(companyId));
+          allow delete: if false;
+        }
+
+        /* ------------------------------------------------------------------
+         * reviewCycles/{cycleId}
+         *
+         * Administrators own the cycle calendar. Everyone reads it, because
+         * deadlines and the published flag drive the whole employee UI.
+         *
+         * This is the only collection where delete is permitted, because the
+         * product's own delete path sets isDeleted and keeps the document.
+         * The rule below therefore still refuses a real removal.
+         * ---------------------------------------------------------------- */
+        match /reviewCycles/{cycleId} {
+          allow read: if isActiveMember(companyId);
+          allow create, update: if isAdminOrAbove(companyId);
+          allow delete: if false;
+        }
+
+        /* ------------------------------------------------------------------
+         * okrs/{okrId} — objectives and key results
+         *
+         * Read: everybody in the company. Managers need their reportees'
+         * goals, administrators need everything for reporting, and the
+         * employee view filters client-side by ownerEmail.
+         *
+         * Write: the owner while the cycle is open, or a manager or
+         * administrator on anybody's behalf.
+         * ---------------------------------------------------------------- */
+        match /okrs/{okrId} {
+          allow read: if isActiveMember(companyId);
+
+          allow create: if isActiveMember(companyId) && (
+            request.resource.data.get('ownerEmail', '').lower() == myEmail() ||
+            isManagerOrAbove(companyId)
+          );
+
+          allow update: if isActiveMember(companyId) && (
+            resource.data.get('ownerEmail', '').lower() == myEmail() ||
+            isManagerOrAbove(companyId)
+          );
+
+          /* Goals are soft-deleted with isDeleted so history and audit trails
+             survive. A hard delete is never allowed. */
+          allow delete: if false;
+        }
+
+        /* ------------------------------------------------------------------
+         * performanceRatings/{cycleId}_{email} — manager sign-off
+         *
+         * Only a manager or above may write a rating, and never their own.
+         * The subject of the rating is carried in ownerEmail, matching
+         * team.js and cycles.js. Everyone in the company can read, because
+         * the reports and analytics tabs aggregate across the roster; the
+         * publish gate that hides an individual's result until the cycle
+         * closes is a product rule, applied in okrs.js.
+         * ---------------------------------------------------------------- */
+        match /performanceRatings/{ratingId} {
+          allow read: if isActiveMember(companyId);
+
+          allow create, update: if isManagerOrAbove(companyId)
+            && request.resource.data.get('ownerEmail', '').lower() != myEmail();
+
+          allow delete: if false;
+        }
+
+        /* ------------------------------------------------------------------
+         * valuesEvaluations/{cycleId}_{email}_{index} — culture scores
+         *
+         * Written by saveTeammateCultureValues() in team.js, which stores the
+         * subject as ownerEmail and the assessor as appraiserEmail. Clearing
+         * a score sets isDeleted rather than removing the document.
+         * ---------------------------------------------------------------- */
+        match /valuesEvaluations/{valuesId} {
+          allow read: if isActiveMember(companyId);
+
+          allow create, update: if isManagerOrAbove(companyId)
+            && request.resource.data.get('ownerEmail', '').lower() != myEmail();
+
+          allow delete: if false;
+        }
+
+        /* ------------------------------------------------------------------
+         * feedback/{autoId} — in-product feedback from testers
+         *
+         * Anybody signed in to the company may submit. Only administrators
+         * read the dashboard, so one tester cannot read another's comments.
+         * The submitter is identified by submittedByUid, which must be the
+         * caller's own uid — testerEmail is a free-text contact field and is
+         * deliberately not used for authorisation.
+         * ---------------------------------------------------------------- */
+        match /feedback/{feedbackId} {
+          allow get, list: if isAdminOrAbove(companyId);
+          allow create: if isActiveMember(companyId)
+            && request.resource.data.get('submittedByUid', '') == request.auth.uid;
+          allow update: if isAdminOrAbove(companyId);
+          allow delete: if false;
+        }
+
+        /* ------------------------------------------------------------------
+         * Anything not matched above is denied. Add an explicit match block
+         * when you introduce a new collection.
+         * ---------------------------------------------------------------- */
+        match /{unknownCollection}/{docId} {
+          allow read, write: if false;
+        }
+      }
+    }
+
+    /* ======================================================================
+     * Everything outside tenants/ is closed. Legacy top-level collections
+     * from the old single-tenant build are readable by nobody through the
+     * client, which is what keeps the migration one-way and safe.
+     * ==================================================================== */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

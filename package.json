@@ -1,0 +1,14 @@
+{
+  "name": "perfexio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Perfexio — multi-tenant performance management (goals, reviews, culture scoring) on Firebase Hosting + Firestore.",
+  "scripts": {
+    "test": "node tools/test.js",
+    "deploy:staging": "firebase deploy --only hosting:staging",
+    "deploy:demo": "firebase deploy --only hosting:demo",
+    "deploy:production": "firebase deploy --only hosting:production",
+    "deploy:rules": "firebase deploy --only firestore:rules"
+  },
+  "license": "UNLICENSED"
+}

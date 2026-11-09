@@ -1,0 +1,21 @@
+# Never commit Firebase admin credentials
+serviceAccountKey.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+.env
+.env.*
+
+# Firebase CLI local state
+.firebase/
+
+# Local migration output and scratch dumps.
+# Ignore every tools/*.json EXCEPT the id fixture the test harness needs,
+# so a fresh clone can still run `npm test`.
+tools/exports/
+tools/*.json
+!tools/_js_ids_all.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+node_modules/

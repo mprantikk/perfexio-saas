@@ -1,0 +1,20 @@
+{
+  "projects": {
+    "default": "perfexio"
+  },
+  "targets": {
+    "perfexio": {
+      "hosting": {
+        "production": [
+          "perfexio"
+        ],
+        "staging": [
+          "staging-perfexio"
+        ],
+        "demo": [
+          "staging-perfexio-demo"
+        ]
+      }
+    }
+  }
+}
