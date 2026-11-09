@@ -114,7 +114,7 @@ check means non-English text slipped into a shipped string.
 Full walkthrough is in `DEPLOY.md`. The command sequence (always staging first):
 
 ```bash
-cd /Users/masudparvejprantik/Perfexio
+cd perfexio-saas
 npm test
 firebase deploy --only firestore:rules       # rules are shared by all 3 envs
 firebase deploy --only hosting:staging        # verify at staging-perfexio.web.app
@@ -132,8 +132,7 @@ across all three environments, so a rules deploy takes effect everywhere at once
 ## 6. Onboarding a client and platform-admin access
 
 - **You (the owner) get full access** by having a `platformAdmins/{yourUID}` doc
-  in each environment — see `DEPLOY.md §5b`, which lists the exact documents for
-  both owner emails on production and staging.
+  in each environment — see `DEPLOY.md §5b` for the exact steps.
 - **To onboard a client company**, sign in as a platform admin and use **Create
   client company** — see `DEPLOY.md §8` for what to collect and the step-by-step,
   and `ARCHITECTURE.md §12` for the code path.
