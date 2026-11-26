@@ -10,6 +10,7 @@
 <img src="https://img.shields.io/badge/Tailwind_CSS-0F172A?style=for-the-badge&logo=tailwindcss&logoColor=60A5FA" />
 <img src="https://img.shields.io/badge/Chart.js-0F172A?style=for-the-badge&logo=chartdotjs&logoColor=60A5FA" />
 <img src="https://img.shields.io/badge/Build_step-None-2563EB?style=for-the-badge&labelColor=0F172A" />
+<br><a href="https://github.com/mprantikk/perfexio-saas/actions/workflows/ci.yml"><img src="https://github.com/mprantikk/perfexio-saas/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 
 </div>
 
